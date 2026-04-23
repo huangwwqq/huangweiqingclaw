@@ -1,0 +1,15 @@
+logs/
+test/
+.idea
+__pycache__
+*.pyc
+*.log
+*.pdf
+*.png
+*.jpg
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.html
+.DS_Store
