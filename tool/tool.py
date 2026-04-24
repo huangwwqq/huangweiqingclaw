@@ -4,11 +4,14 @@ import requests
 sys.path.append('../')
 from langchain_core.tools import tool
 from common.db_mysql import *
+from common.common import *
 from setting.setting import *
 from _model.model import *
 import subprocess
 import locale
-
+import re
+from playwright.sync_api import sync_playwright
+import urllib.parse
 
 @tool(args_schema=MySQLExecuteModel)
 def execute_mysql_sql(sql: str, mysql_config:dict, database: str = None) -> str:
@@ -91,18 +94,31 @@ def request_tool(
             verify=verify,
             cert=cert
         )
+        # 1. 根据响应头快速判断类型
+        content_type = response.headers.get('Content-Type', '').lower()
 
+        # 2. 如果是二进制（图片、PDF等），直接返回元数据，没必要 decode 乱码
+        if any(t in content_type for t in ['image/', 'video/', 'audio/', 'application/pdf']):
+            return f"[二进制文件] 类型: {content_type}, 大小: {len(response.content)} bytes"
+        # 3. 正常获取文本内容
+        result = response.text
+        # --- 针对请求部分的“就地预处理” ---
+        if 'application/json' in content_type:
+            try:
+                # 哪怕是 JSON，也要先格式化，压缩掉不必要的空格
+                data_obj = response.json()
+                result = json.dumps(data_obj, ensure_ascii=False, separators=(',', ':'))
+            except:
+                pass
+        elif 'text/html' in content_type:
+            # 暴力剔除网页里最占空间的 CSS 和 JS，保留核心文本
+            result = re.sub(r'<(script|style).*?>.*?</\1>', '', result, flags=re.DOTALL | re.IGNORECASE)
+            # 压缩连续换行和空格
+            result = re.sub(r'\s+', ' ', result)
     except Exception as e:
         logger.warning(f'请求工具调用错误,error:{e}')
         return f'请求工具调用异常 url:{url} 请求方式:{method} 异常:{e}'
-
-    try:
-        result = response.content.decode()
-    except:
-        result = response.content
-
-
-    return f'请求结果:{result[:requests_result_length]}'
+    return f'{preliminary_compression(result)}'
 
 
 
@@ -221,12 +237,112 @@ def file_operation_tool(path: str, mode: str = "r", content: str = "", chunk_ind
         return f"文件操作异常: {str(e)}"
 
 
+@tool(args_schema=WebSearchModel)
+def web_search_tool(keyword: str, max_results: int = 10) -> str:
+    """
+    基于 Playwright 的联网搜索工具。
+    自动打开搜索引擎（默认百度，支持 Google），搜索关键词并提取结果。
+    
+    :param keyword: 搜索词
+
+    :param max_results: 返回结果的最大数量
+    :return: 包含标题、链接和摘要的搜索结果字符串
+    """
+    # 编码搜索词
+    encoded_keyword = urllib.parse.quote(keyword)
+
+    # 使用百度
+    url = f"https://www.baidu.com/s?wd={encoded_keyword}"
+    # 结果选择器 (Baidu)
+    result_selector = "div.c-container"
+    title_selector = "h3.t"
+    link_selector = "h3.t > a, h3.t > div > a, a.c-title-a"
+
+    try:
+        with sync_playwright() as p:
+            # 使用 Chromium，启动 headless 模式
+            browser = p.chromium.launch(headless=True)
+            # 配置请求头等，避免被反爬拦截
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                viewport={"width": 1280, "height": 800}
+            )
+            page = context.new_page()
+            
+            # 访问 URL，等待网络空闲
+            page.goto(url, wait_until="domcontentloaded", timeout=300000)
+            
+            # 检查是否遇到了反爬虫验证 (特别是 Google 的 unusual traffic)
+            page_text = page.inner_text("body")
+            if "unusual traffic" in page_text or "unusual traffic from your computer network" in page_text:
+                browser.close()
+                return f"搜索引擎触发了反爬虫验证，无法获取搜索结果。建议使用代理或更换搜索引擎。"
+
+            # 等待搜索结果加载
+            try:
+                page.wait_for_selector(result_selector, timeout=100000)
+            except Exception:
+                # 即使超时，也尝试提取当前页面结果
+                pass
+
+            # 提取搜索结果
+            elements = page.query_selector_all(result_selector)
+            
+            results = []
+            for element in elements:
+                if len(results) >= max_results:
+                    break
+
+                all_text = element.inner_text().strip() if element else ""
+                title_el = element.query_selector(title_selector)
+                link_el = element.query_selector(link_selector)
+                
+                title = title_el.inner_text().strip() if title_el else ""
+                link = link_el.get_attribute("href") if link_el else ""
+                snippet = all_text.replace(title, "", 1).strip() if title else all_text
+
+                
+                # 有些百度链接可能是在外层 div
+                if not link and title_el:
+                    try:
+                        link_a = title_el.query_selector("a")
+                        if link_a:
+                            link = link_a.get_attribute("href")
+                    except:
+                        pass
+                
+                # 如果没有标题或链接，跳过
+                if not title:
+                    continue
+                    
+                results.append({
+                    "title": title,
+                    "link": link,
+                    "snippet": snippet.replace("\n", " ")
+                })
+            
+            browser.close()
+            
+            # 格式化输出
+            if not results:
+                return f"未找到 '{keyword}' 的搜索结果。这可能是因为搜索引擎的反爬虫机制或网络问题。"
+                
+            output_parts = [f"搜索结果: '{keyword}'"]
+            for i, res in enumerate(results, 1):
+                output_parts.append(f"{i}. {res['title']}\n   链接: {res['link']}\n   摘要: {res['snippet']}")
+                
+            return preliminary_compression("\n\n".join(output_parts))
+            
+    except Exception as e:
+        return f"搜索工具执行异常: {str(e)}"
+
 # 工具列表
 tool_list = [
     execute_mysql_sql,
     request_tool,
     execute_cli_tool,
-    file_operation_tool
+    file_operation_tool,
+    web_search_tool
 ]
 
 

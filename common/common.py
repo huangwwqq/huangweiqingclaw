@@ -52,6 +52,18 @@ def get_self_awareness():
         os.remove(user_md_path)
         return f"读取用户角色定位错误，请优先引导用户明确双方身份：我方应答角色、用户身份，以及对话风格与交互规则。如果用户确认双方身份,必须最优先记录下用户身份,记录的路径是:{user_md_path}"
 
+def preliminary_compression(data: str,) -> str:
+    # 初步压缩
+    if len(data) < threshold:
+        return data
+    logger.info(f"--- 检测到过长 ({len(data)} 字符)，执行首尾截断并尝试摘要 ---")
+    # 1. 执行首尾截断：保留前 1/4 和 后 1/4 的内容，中间用省略号代替
+    # 这样可以确保模型能看到“开始的任务指令”和“最后的报错/结果”
+    keep_len = threshold // 2
+    truncated_data = f"{data[:keep_len // 2]}\n\n[...中间内容已截断...]\n\n{data[-keep_len // 2:]}"
+    return truncated_data
+
+
 
 
 # print(get_skills_context())

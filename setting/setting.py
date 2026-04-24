@@ -65,7 +65,6 @@ max_react_step = 20  # 最大react步数
 memory_limit = 3  # 最多获取3条记忆
 memory_time = 3 * 60 * 60  # 最多记住前3个小时的记忆
 file_list_max_length = 3  # 最多传入3个文件url
-requests_result_length = 20000  # 请求响应最大长度
 threshold = 30000  # 压缩最大长度
 
 # huangweiqingclaw mysql连接设置

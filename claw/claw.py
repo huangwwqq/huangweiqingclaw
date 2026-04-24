@@ -70,17 +70,12 @@ class HuangwqClaw:
         """
         # 设定阈值
 
-        if len(data) < threshold:
-            return data
-
-        logger.info(f"--- 检测到过长 ({len(data)} 字符)，正在执行内容压缩 ---")
-        data = data[:threshold] + '----尾部已压缩'
+        truncated_data = preliminary_compression(data)
         compress_prompt = (
-            f"请将以下冗长的进行高度压缩摘要。\n"
-            f"要求：严格保留关键参数、数据结果、错误信息或任务进度，删除无意义的冗余文本。\n"
-            f"待压缩内容：\n{data}"
+            f"请将以下冗长的文本进行高度压缩摘要。\n"
+            f"要求：严格保留关键参数、数据结果、错误信息或任务进度，删除无意义的冗余。直接输出摘要内容，不要废话。\n"
+            f"待压缩内容：\n{truncated_data}"
         )
-
         try:
             res = self.agent.invoke(
                 input={"messages": [{"role": "user", "content": compress_prompt}]},
@@ -92,7 +87,7 @@ class HuangwqClaw:
         except Exception as e:
             logger.error(f"压缩失败: {e}")
 
-        return data[:threshold] + "...(内容过长且压缩失败，已截断)"
+        return truncated_data
 
     def work(
             self,
@@ -148,8 +143,7 @@ class HuangwqClaw:
             user_msg['file_url_list'] = json.dumps(file_url_path_list)
         self.tb_agent_message_object.save_memory(memory_list=[user_msg])
         try:
-            for chunk in self.agent.stream({"messages": [{"role": "user", "content": input_msg}]}, config=model_run_config,
-                                           stream_mode="updates"):
+            for chunk in self.agent.stream({"messages": [{"role": "user", "content": input_msg}]}, config=model_run_config,stream_mode="updates"):
                 for node_name, node_state in chunk.items():
                     latest_msg = node_state["messages"][-1]
                     role, message = '', ''
@@ -223,6 +217,4 @@ if __name__ == '__main__':
         base_url='https://api.deepseek.com',
         api_key='你的api_key'
     )
-    print(claw.work(user_id='huangweiqing',user_input='你给whatsapp号码:8613247562356,使用这个session_id:huangweiqing,'
-                                                                                                         '请求方式必须按照文档的来,发送一条文本信息,'
-                                                                                                         '信息内容是:我是一条群发消息'))
+    print(claw.work(user_id='huangweiqing',user_input='你使用互联网搜索技能,搜索深圳百能信息技术有限公司,将搜索到的结果整合一下,然后给whatsapp号码:**********,使用这个session_id:huangweiqing,请求方式必须按照文档的来,发送一条文本信息,信息内容是刚刚整合的数据'))

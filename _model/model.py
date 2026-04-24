@@ -120,6 +120,10 @@ class AgentMessage(BaseModel):
     file_url_list:Optional[List[str]] = None
 
 
+class WebSearchModel(BaseModel):
+    """联网搜索功能数据模型"""
+    keyword: str = Field(description="搜索关键字")
+    max_results: int = Field(default=5, description="返回的最大搜索结果数量")
 
 
 
