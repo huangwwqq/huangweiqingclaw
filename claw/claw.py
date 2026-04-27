@@ -213,7 +213,7 @@ class HuangwqClaw:
 if __name__ == '__main__':
     claw = HuangwqClaw(
         model_manufacturer='deepseek',
-        model_name='deepseek-chat',
+        model_name='deepseek-v4-pro',
         base_url='https://api.deepseek.com',
         api_key='你的api_key'
     )

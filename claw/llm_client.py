@@ -67,6 +67,15 @@ class LangChainLLMFactory:
                 **kwargs
             )
 
+        # ---------------- 3. 通用 OpenAI 兼容协议处理 (含 DeepSeek) ----------------
+        if provider == "deepseek":
+            # 动态合并 extra_body，防止覆盖用户原本可能传进来的其他 extra_body 配置
+            # 禁用 thinking 模式，防止多轮对话缺少 reasoning_content 导致 400 错误
+            if "extra_body" not in kwargs:
+                kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+            elif isinstance(kwargs["extra_body"], dict):
+                kwargs["extra_body"].setdefault("thinking", {"type": "disabled"})
+
         return ChatOpenAI(
             api_key=api_key,
             base_url=base_url,
