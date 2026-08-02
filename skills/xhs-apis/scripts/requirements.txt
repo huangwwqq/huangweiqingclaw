@@ -1,0 +1,5 @@
+PyExecJS
+requests
+loguru
+opencv-python
+numpy

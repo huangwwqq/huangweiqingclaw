@@ -1,0 +1,8 @@
+{
+  "name": "xhs-apis-skill-runtime",
+  "private": true,
+  "dependencies": {
+    "crypto-js": "^4.2.0",
+    "jsdom": "^26.0.0"
+  }
+}

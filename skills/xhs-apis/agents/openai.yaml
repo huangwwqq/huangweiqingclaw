@@ -1,0 +1,4 @@
+interface:
+  display_name: "XHS APIs"
+  short_description: "Run vendored XHS PC and creator APIs from Spider_XHS."
+  default_prompt: "Use $xhs-apis to inspect or call the vendored XHS PC or creator APIs from Spider_XHS."

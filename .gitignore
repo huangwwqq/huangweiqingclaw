@@ -1,0 +1,21 @@
+logs/
+test/
+.idea
+__pycache__
+*.pyc
+*.log
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.html
+.DS_Store
+
+# 允许根目录的名片图片被 Git 跟踪
+!/wechat_qrcode.jpg
